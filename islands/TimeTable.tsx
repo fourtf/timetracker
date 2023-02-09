@@ -1,8 +1,11 @@
 import { useState } from "preact/hooks";
-import { Button } from "../components/Button.tsx";
+import Button from "../components/Button.tsx";
 import Input from "../components/Input.tsx";
 import IconCalendarPlus from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/calendar-plus.tsx";
 import IconRefresh from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/refresh.tsx";
+import IconPlus from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/plus.tsx";
+import IconMinus from "https://deno.land/x/tabler_icons_tsx@0.0.2/tsx/minus.tsx";
+import { IS_BROWSER } from "$fresh/runtime.ts";
 
 let id = 0;
 function nextId() {
@@ -52,10 +55,16 @@ export default function TimeTable() {
       <div class="flex flex-col gap-1 w-full">
         <div class="flex justify-center gap-2">
           <p class="text-gray-600 text-sm">
-            Start: {current ? formatTime(current?.from) : "none"}
+            Start: {IS_BROWSER && current ? formatTime(current?.from) : "none"}
           </p>
-          <button onClick={restartTimer}>
+          <button onClick={reset}>
             <IconRefresh class="w-5 h-5" />
+          </button>
+          <button onClick={subFromStartTime}>
+            <IconMinus class="w-5 h-5" />
+          </button>
+          <button onClick={addToStartTime}>
+            <IconPlus class="w-5 h-5" />
           </button>
         </div>
         <div class="flex gap-2 w-full items-center">
@@ -68,11 +77,11 @@ export default function TimeTable() {
             onChange={(e) =>
               current && setCurrent({
                 ...current,
-                // deno-lint-ignore no-explicit-any
-                subject: (e?.target as unknown as any)?.value ?? "",
+                subject: (e?.target as unknown as { value: string })?.value ??
+                  "",
               })}
           />
-          <Button onClick={start} disabled={!current?.subject}>
+          <Button onClick={addAndReset} disabled={!current?.subject}>
             <IconCalendarPlus />Add
           </Button>
         </div>
@@ -94,53 +103,86 @@ export default function TimeTable() {
             ))}
           </div>
           {/* segments (position based on start/end time) */}
-          <div class="absolute top-0 left-24 w-full h-full">
-            {previous.map(({ id, from, to, subject }) => (
-              <div
-                key={id}
-                class="absolute top-0 left-0 w-80 h-full border(1 gray-600)) bg-indigo-50 px-1"
-                style={{
-                  top: `${
-                    (from.getHours() + from.getMinutes() / 60 - firstHour) *
-                    cellHeight
-                  }rem`,
-                  height: `${
-                    Math.max(
-                      (to.getTime() - from.getTime()) / 1000 / 60 / 60 *
-                        cellHeight,
-                      cellHeight / 4,
-                    )
-                  }rem`,
-                }}
-              >
-                {subject}
-              </div>
+          <div class="absolute top-0 left-24 h-full">
+            {previous.map((segment) => (
+              <SegmentView
+                key={segment.id}
+                class="border(1 gray-600)) bg-indigo-50 bg-opacity-50"
+                segment={segment}
+              />
             ))}
+            {/* current segment */}
+            {current && (
+              <SegmentView
+                class="border(1 green-500 dashed) opacity-50"
+                segment={{ ...current, to: new Date() }}
+              />
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 
-  function start() {
+  function SegmentView(
+    { segment: { subject, from, to }, class: class_ }: {
+      segment: Segment;
+      class?: string;
+    },
+  ) {
+    return (
+      <div
+        key={id}
+        class={`absolute top-0 left-0 w-80 h-full px-1 ${class_}`}
+        style={{
+          top: `${
+            (from.getHours() + from.getMinutes() / 60 - firstHour) *
+            cellHeight
+          }rem`,
+          height: `${
+            Math.max(
+              (to.getTime() - from.getTime()) / 1000 / 60 / 60 *
+                cellHeight,
+              cellHeight / 4,
+            )
+          }rem`,
+        }}
+      >
+        {subject}
+      </div>
+    );
+  }
+
+  function addAndReset() {
     if (current) {
       setPrevious([...previous, { ...current, to: new Date() }]);
     }
     setCurrent({ id: nextId(), from: new Date(), to: new Date(), subject: "" });
   }
 
-  function restart() {
-    if (current) {
-      setPrevious([...previous, { ...current, to: new Date() }]);
-    }
-    setCurrent(null);
-  }
-
-  function restartTimer() {
+  function reset() {
     if (current) {
       setCurrent({ ...current, from: new Date() });
     } else {
       setCurrent({ id: nextId(), from: new Date(), subject: "" });
+    }
+  }
+
+  function addToStartTime() {
+    if (current) {
+      setCurrent({
+        ...current,
+        from: new Date(current.from.getTime() + 60000 * 15),
+      });
+    }
+  }
+
+  function subFromStartTime() {
+    if (current) {
+      setCurrent({
+        ...current,
+        from: new Date(current.from.getTime() - 60000 * 15),
+      });
     }
   }
 }
